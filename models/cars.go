@@ -18,16 +18,19 @@ type Car struct {
 	semQuit    chan bool
 }
 
-
-var exitCars []*Car
+var (
+	Gray           = color.RGBA{R: 30, G: 30, B: 30, A: 255}
+	Black          = color.RGBA{R: 0, G: 0, B: 0, A: 255}
+	exitCars []*Car
+)
 
 func NewSpaceCar() *Car {
 
-	rectangule := canvas.NewRectangle(color.RGBA{R: 30, G: 30, B: 30, A: 255})
+	rectangule := canvas.NewRectangle(Gray)
 
 	rectangule.SetMinSize(fyne.NewSquareSize(float32(30)))
 
-	text := canvas.NewText(fmt.Sprintf("%d", 0), color.RGBA{R: 0, G: 0, B: 0, A: 255})
+	text := canvas.NewText(fmt.Sprintf("%d", 0), Black)
 	text.Hide()
 
 	car := &Car{
@@ -45,7 +48,7 @@ func NewCar(id int, sQ chan bool) *Car {
 	rangB := rand.Intn(256) // Componente azul entre 0 y 255
 	colorRectangle := color.RGBA{R: 0, G: 0, B: uint8(rangB), A: 255}
 	
-	time := rand.Intn(5-1)
+	time := rand.Intn(5-1) + 1
 
 	rectangule := canvas.NewRectangle(colorRectangle)
 	rectangule.SetMinSize(fyne.NewSquareSize(float32(30)))

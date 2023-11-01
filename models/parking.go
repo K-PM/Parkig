@@ -1,6 +1,8 @@
 package models
 
 import (
+	"math"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -16,21 +18,19 @@ const (
 )
 
 type Parking struct {
-	semGenerateCar chan bool
-    carID          int
 	waitCars            []*Car
 	parking             [MaxParking]*Car
 	entrace             *Car
 	exit                *Car
 	out                 *Car
 	semQuit             chan bool
+	semRenderNewCarWait chan bool
 }
 
 func NewParking(sENCW chan bool, sQ chan bool) *Parking {
 	parking := &Parking{
-		semGenerateCar: make(chan bool),
-        carID:          0,
-        waitCars:       make([]*Car, 0),
+		semRenderNewCarWait: sENCW,
+		semQuit:             sQ,
 	}
 	return parking
 }
@@ -58,21 +58,18 @@ func (p *Parking) MakeEntraceStation() *Car {
 }
 
 func (p *Parking) GenerateCars() {
-	
-	for i := 0; i < 20; i++ {
-        select {
-        case <-p.semGenerateCar:
-            return
-        default:
-            car := NewCar(p.carID, p.semQuit)
-            go car.StartCount(p.carID)
-            p.carID++
-            p.waitCars = append(p.waitCars, car)
-            time.Sleep(time.Second) // Espera un segundo antes de generar el siguiente vehículo
-        }
-    }
+	i := 20
+	for {
+			interarrivalTime := -math.Log(1-rand.Float64()) / lambda //Poisson.
+			time.Sleep(time.Duration(interarrivalTime * float64(time.Second)))
+			if len(p.waitCars) < MaxWait {
+				car := NewCar(i, p.semQuit)
+				i++
+				p.waitCars = append(p.waitCars, car)
+				p.semRenderNewCarWait <- true
+			}
+	}
 }
-
 
 func (p *Parking) CheckParking() {
 	for {
@@ -99,7 +96,6 @@ func (p *Parking) MoveToEntrace() {
 
 func (p *Parking) MoveToPark(index int) {
 	p.parking[index].ReplaceData(p.entrace)
-	p.parking[index].text.Show()
 
 	p.entrace.ReplaceData(NewSpaceCar())
 	go p.parking[index].StartCount(index)
@@ -130,7 +126,6 @@ func (p *Parking) OutCarToExit() {
 
 func (p *Parking) MoveToExit(index int) {
 	p.exit.ReplaceData(p.parking[index])
-	p.parking[index].text.Hide()
 	p.parking[index].ReplaceData(NewSpaceCar())
 	time.Sleep(1 * time.Second)
 }
