@@ -46,8 +46,7 @@ func (p *ParkingView) MakeScene() {
 	
 	bgCanvas := canvas.NewRectangle(color.RGBA{R: 255, G: 255, B: 255, A: 255})
 	p.window.SetContent(bgCanvas)
-	p.window.SetContent(containerParkingView)
-	
+	p.window.SetContent(containerParkingView)	
 	p.window.Resize(fyne.NewSize(300, 200))
 }
 
@@ -93,7 +92,6 @@ func (p *ParkingView) MakeEnterAndExitStation() *fyne.Container {
 	parkingContainer.Add(layout.NewSpacer())
 	return container.NewCenter(parkingContainer)
 }
-
 
 func (p *ParkingView) RenderNewCarWaitStation() {
 	for {
