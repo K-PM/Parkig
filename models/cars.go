@@ -10,116 +10,95 @@ import (
 	"fyne.io/fyne/v2/canvas"
 )
 
-type Car struct {
+type Auto struct {
 	ID         int
-	rectangule *canvas.Rectangle
-	text       *canvas.Text
-	time       int
-	semQuit    chan bool
+	rectangulo *canvas.Rectangle
+	tiempo     int
+	semaQ      chan bool
 }
 
-var (
-	Gray           = color.RGBA{R: 30, G: 30, B: 30, A: 255}
-	Black          = color.RGBA{R: 0, G: 0, B: 0, A: 255}
-	exitCars []*Car
-)
+var autosSalida []*Auto
 
-func NewSpaceCar() *Car {
+func NuevoAutoEstacionamiento() *Auto {
+	rectangulo := canvas.NewRectangle(color.RGBA{R: 30, G: 30, B: 30, A: 255})
+	rectangulo.SetMinSize(fyne.NewSquareSize(float32(30)))
+	texto := canvas.NewText(fmt.Sprintf("%d", 0), color.RGBA{R: 0, G: 0, B: 0, A: 255})
+	texto.Hide()
 
-	rectangule := canvas.NewRectangle(Gray)
-
-	rectangule.SetMinSize(fyne.NewSquareSize(float32(30)))
-
-	text := canvas.NewText(fmt.Sprintf("%d", 0), Black)
-	text.Hide()
-
-	car := &Car{
+	auto := &Auto{
 		ID:         -1,
-		rectangule: rectangule,
-		time:       0,
-		text:       text,
+		rectangulo: rectangulo,
+		tiempo:     0,
 	}
 
-	return car
+	return auto
 }
 
-func NewCar(id int, sQ chan bool) *Car {
-	rand.Seed(time.Now().UnixNano()) 
-	rangB := rand.Intn(256) // Componente azul entre 0 y 255
-	colorRectangle := color.RGBA{R: 0, G: 0, B: uint8(rangB), A: 255}
-	
-	time := rand.Intn(5-1) + 1
+func NuevoAuto(id int, sq chan bool) *Auto {
+	rand.Seed(time.Now().UnixNano())
+	rangoB := rand.Intn(256)
+	colorRectangulo := color.RGBA{R: 0, G: 0, B: uint8(rangoB), A: 255}
+	tiempo := rand.Intn(5-1) + 1
+	rectangulo := canvas.NewRectangle(colorRectangulo)
+	rectangulo.SetMinSize(fyne.NewSquareSize(float32(30)))
 
-	rectangule := canvas.NewRectangle(colorRectangle)
-	rectangule.SetMinSize(fyne.NewSquareSize(float32(30)))
-
-	text := canvas.NewText(fmt.Sprintf("%d", time), color.RGBA{R: 30, G: 30, B: 30, A: 255})
-	text.Hide()
-
-	car := &Car{
+	auto := &Auto{
 		ID:         id,
-		rectangule: rectangule,
-		time:       time,
-		text:       text,
-		semQuit:    sQ,
+		rectangulo: rectangulo,
+		tiempo:     tiempo,
+		semaQ:      sq,
 	}
 
-	return car
+	return auto
 }
 
-func (c *Car) StartCount(id int) {
+func (a *Auto) IniciarConteo(id int) {
 	for {
 		select {
-		case <-c.semQuit:
+		case <-a.semaQ:
 			return
 		default:
-			if c.time <= 0 {
-				c.ID = id
-				exitCars = append(exitCars, c)
+			if a.tiempo <= 0 {
+				a.ID = id
+				autosSalida = append(autosSalida, a)
 				return
 			}
-			c.time--
-			c.text.Text = fmt.Sprintf("%d", c.time)
+			a.tiempo--
 			time.Sleep(1 * time.Second)
 		}
 	}
 }
 
-func (c *Car) GetRectangle() *canvas.Rectangle {
-	return c.rectangule
-}
-func (c *Car) ReplaceData(car *Car) {
-	c.ID = car.ID
-	c.time = car.time
-	c.rectangule.FillColor = car.rectangule.FillColor
-	c.text.Text = car.text.Text
-	c.text.Color = car.text.Color
+func (a *Auto) ObtenerRectangulo() *canvas.Rectangle {
+	return a.rectangulo
 }
 
-func (c *Car) GetText() *canvas.Text {
-	return c.text
+func (a *Auto) ReemplazarDatos(auto *Auto) {
+	a.ID = auto.ID
+	a.tiempo = auto.tiempo
+	a.rectangulo.FillColor = auto.rectangulo.FillColor
 }
 
-func (c *Car) GetTime() int {
-	return c.time
+func (a *Auto) ObtenerTiempo() int {
+	return a.tiempo
 }
 
-func (c *Car) GetID() int {
-	return c.ID
+func (a *Auto) ObtenerID() int {
+	return a.ID
 }
 
-func GetWaitCars() []*Car {
-	return exitCars
+func ObtenerAutosEspera() []*Auto {
+	return autosSalida
 }
 
-func PopExitWaitCars() *Car {
-	car := exitCars[0]
-	if !WaitExitCarsIsEmpty() {
-		exitCars = exitCars[1:]
+func DesencolarSalidaAutos() *Auto {
+	auto := autosSalida[0]
+	if !ColaSalidaAutosVacia() {
+		autosSalida = autosSalida[1:]
 	}
-	return car
+	return auto
 }
 
-func WaitExitCarsIsEmpty() bool {
-	return len(exitCars) == 0
+func ColaSalidaAutosVacia() bool {
+	return len(autosSalida) == 0
 }

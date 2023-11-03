@@ -4,20 +4,18 @@ import (
 	"fyne.io/fyne/v2"
 	"Estacionamiento/utils"
 )
-
-type MainView struct {
-	window fyne.Window
+type VistaPrincipal struct {
+	Window fyne.Window
 }
 
-func NewMainView(window fyne.Window) *MainView {
-	MainView := &MainView{
-		window: window,
+func NuevaVistaPrincipal(Window fyne.Window) *VistaPrincipal {
+	vistaPrincipal := &VistaPrincipal{
+		Window: Window,
 	}
-	MainView.StartParkingSimulation()
-	return MainView
+	vistaPrincipal.IniciarSimulacionEstacionamiento()
+	return vistaPrincipal
 }
 
-
-func (m *MainView) StartParkingSimulation() {
-	utils.NewParkingView(m.window)
+func (v *VistaPrincipal) IniciarSimulacionEstacionamiento() {
+	utils.NuevaVistaEstacionamiento(v.Window)
 }

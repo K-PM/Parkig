@@ -4,128 +4,139 @@ import (
 	"Estacionamiento/models"
 	"image/color"
 	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 )
 
-var semRenderNewCarWait chan bool
-var semQuit chan bool
+var semRenderNuevoAutoEspera chan bool
+var semSalir chan bool
+var estacionamiento *models.Estacionamiento
 
-type ParkingView struct {
-	window               fyne.Window
-	waitRectangleStation [models.MaxWait]*canvas.Rectangle
+type VistaEstacionamiento struct {
+	ventana                fyne.Window
+	rectangulosEstacionEspera [models.MaxEspera]*canvas.Rectangle
+	containerVistaEstacionamiento *fyne.Container
 }
 
-var parking *models.Parking
-
-func NewParkingView(window fyne.Window) *ParkingView {
-	parkingView := &ParkingView{window: window}
-	semQuit = make(chan bool)
-	semRenderNewCarWait = make(chan bool)
-	parking = models.NewParking(semRenderNewCarWait, semQuit)
-	parkingView.MakeScene()
-	parkingView.StartSimulation()
-
-	return parkingView
+func NuevaVistaEstacionamiento(ventana fyne.Window) *VistaEstacionamiento {
+	vistaEstacionamiento := &VistaEstacionamiento{ventana: ventana}
+	vistaEstacionamiento.inicializar()
+	return vistaEstacionamiento
 }
 
-func (p *ParkingView) MakeScene() {
-	bgCanvas := canvas.NewRectangle(color.RGBA{R: 255, G: 255, B: 255, A: 255})
-	bgCanvas.Resize(fyne.NewSize(300,200))
-
-	containerParkingView := container.New(layout.NewVBoxLayout())
-	containerParkingOut := container.New(layout.NewHBoxLayout())
-
-	containerParkingOut.Add(p.MakeWaitStation())
-	containerParkingOut.Add(p.MakeExitStation())
-	containerParkingView.Add(p.MakeEnterAndExitStation())
-	containerParkingView.Add(p.MakeParking())
-
-	
-	p.window.SetContent(containerParkingView)	
-	p.window.Resize(fyne.NewSize(300, 200))
+func (v *VistaEstacionamiento) inicializar() {
+	v.inicializarCanales()
+	v.inicializarEstacionamiento()
+	v.inicializarInterfazUsuario()
+	v.iniciarSimulacion()
 }
 
-func (p *ParkingView) MakeParking() *fyne.Container {
-	parkingContainer := container.New(layout.NewGridLayout(5))
-	parking.MakeParking()
-	parkingArray := parking.GetParking()
-	for i := 0; i < len(parkingArray); i++ {
-		
-		parkingContainer.Add(container.NewCenter(parkingArray[i].GetRectangle()))
-	}
-	return container.NewCenter(parkingContainer)
+func (v *VistaEstacionamiento) inicializarCanales() {
+	semSalir = make(chan bool)
+	semRenderNuevoAutoEspera = make(chan bool)
 }
 
-func (p *ParkingView) MakeWaitStation() *fyne.Container {
-	parkingContainer := container.New(layout.NewGridLayout(5))
-	for i := len(p.waitRectangleStation) - 1; i >= 0; i-- {
-		car := models.NewSpaceCar().GetRectangle()
-		p.waitRectangleStation[i] = car
-		p.waitRectangleStation[i].Hide()
-		parkingContainer.Add(p.waitRectangleStation[i])
-	}
-	return parkingContainer
+func (v *VistaEstacionamiento) inicializarEstacionamiento() {
+	estacionamiento = models.NuevoEstacionamiento(semRenderNuevoAutoEspera, semSalir)
+	estacionamiento.CrearEstacionamiento()
 }
 
-func (p *ParkingView) MakeExitStation() *fyne.Container {
-	out := parking.MakeOutStation()
-	return container.NewCenter(out.GetRectangle())
+func (v *VistaEstacionamiento) inicializarInterfazUsuario() {
+	v.crearEscena()
+	v.ventana.Resize(fyne.NewSize(300, 200))
 }
 
-func (p *ParkingView) MakeEnterAndExitStation() *fyne.Container {
-	parkingContainer := container.New(layout.NewGridLayout(5))
-	parkingContainer.Add(layout.NewSpacer())
-	entrace := parking.MakeEntraceStation()
-	parkingContainer.Add(entrace.GetRectangle())
-	parkingContainer.Add(layout.NewSpacer())
-
-	exit := parking.MakeExitStation()
-	
-	parkingContainer.Add(exit.GetRectangle())
-	parkingContainer.Add(layout.NewSpacer())
-	return container.NewCenter(parkingContainer)
+func (v *VistaEstacionamiento) iniciarSimulacion() {
+	go estacionamiento.GenerarAutos()
+	go estacionamiento.SalidaAutoASalida()
+	go estacionamiento.VerificarEstacionamiento()
+	go v.actualizarRenderizado()
+	go v.actualizarNuevoAutoEstacionEspera()
 }
 
-func (p *ParkingView) RenderNewCarWaitStation() {
+func (v *VistaEstacionamiento) crearEscena() {
+	canvasFondo := canvas.NewRectangle(color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	canvasFondo.Resize(fyne.NewSize(300, 200))
+
+	v.containerVistaEstacionamiento = container.New(layout.NewVBoxLayout()) 
+	containerSalidaEstacionamiento := container.New(layout.NewHBoxLayout())
+
+	containerSalidaEstacionamiento.Add(v.crearEstacionEspera())
+	containerSalidaEstacionamiento.Add(v.crearEstacionSalida())
+	v.containerVistaEstacionamiento.Add(v.crearEstacionEntradaYSalida())
+	v.containerVistaEstacionamiento.Add(v.crearEstacionamiento())
+
+	v.ventana.SetContent(v.containerVistaEstacionamiento)	
+	v.ventana.Resize(fyne.NewSize(300, 200))
+}
+
+func (v *VistaEstacionamiento) actualizarRenderizado() {
 	for {
 		select {
-		case <-semQuit:
-			return
-		case <-semRenderNewCarWait:
-			waitCars := parking.GetWaitCars()
-			for i := len(waitCars) - 1; i >= 0; i-- {
-				
-					p.waitRectangleStation[i].Show()
-					p.waitRectangleStation[i].FillColor = waitCars[i].GetRectangle().FillColor
-				
-			}
-			p.window.Content().Refresh()
-		}
-	}
-}
-
-func (p *ParkingView) StartSimulation() {
-	go parking.GenerateCars()
-	go parking.OutCarToExit()
-	go parking.CheckParking()
-	go p.RenderUpdate()
-	go p.RenderNewCarWaitStation()
-
-}
-
-
-func (p *ParkingView) RenderUpdate() {
-	for {
-		select {
-		case <-semQuit:
+		case <-semSalir:
 			return
 		default:
-			p.window.Content().Refresh()
+			v.ventana.Content().Refresh()
 			time.Sleep(1 * time.Second)
 		}
 	}
 }
 
+func (v *VistaEstacionamiento) actualizarNuevoAutoEstacionEspera() {
+	for {
+		select {
+		case <-semSalir:
+			return
+		case <-semRenderNuevoAutoEspera:
+			autosEspera := estacionamiento.ObtenerAutosEspera()
+			for i := len(autosEspera) - 1; i >= 0; i-- {
+				v.rectangulosEstacionEspera[i].Show()
+				v.rectangulosEstacionEspera[i].FillColor = autosEspera[i].ObtenerRectangulo().FillColor
+			}
+			v.ventana.Content().Refresh()
+		}
+	}
+}
+
+func (v *VistaEstacionamiento) crearEstacionamiento() *fyne.Container {
+	containerEstacionamiento := container.New(layout.NewGridLayout(5))
+	estacionamiento.CrearEstacionamiento()
+	estacionamientoArray := estacionamiento.ObtenerEstacionamiento()
+	for i := 0; i < len(estacionamientoArray); i++ {
+		containerEstacionamiento.Add(container.NewCenter(estacionamientoArray[i].ObtenerRectangulo()))
+	}
+	return container.NewCenter(containerEstacionamiento)
+}
+
+func (v *VistaEstacionamiento) crearEstacionEspera() *fyne.Container {
+	containerEstacionamiento := container.New(layout.NewGridLayout(5))
+	for i := len(v.rectangulosEstacionEspera) - 1; i >= 0; i-- {
+		auto := models.NuevoAutoEstacionamiento().ObtenerRectangulo()
+		v.rectangulosEstacionEspera[i] = auto
+		v.rectangulosEstacionEspera[i].Hide()
+		containerEstacionamiento.Add(v.rectangulosEstacionEspera[i])
+	}
+	return containerEstacionamiento
+}
+
+func (v *VistaEstacionamiento) crearEstacionSalida() *fyne.Container {
+	salida := estacionamiento.CrearSalidaEstacionamiento()
+	return container.NewCenter(salida.ObtenerRectangulo())
+}
+
+func (v *VistaEstacionamiento) crearEstacionEntradaYSalida() *fyne.Container {
+	containerEstacionamiento := container.New(layout.NewGridLayout(5))
+	containerEstacionamiento.Add(layout.NewSpacer())
+	entrada := estacionamiento.CrearEntrada()
+	containerEstacionamiento.Add(entrada.ObtenerRectangulo())
+	containerEstacionamiento.Add(layout.NewSpacer())
+
+	salida := estacionamiento.CrearSalida()
+	
+	containerEstacionamiento.Add(salida.ObtenerRectangulo())
+	containerEstacionamiento.Add(layout.NewSpacer())
+	return container.NewCenter(containerEstacionamiento)
+}

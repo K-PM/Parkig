@@ -8,6 +8,6 @@ import (
 func main() {
     myApp := app.New()
     mainWindow := myApp.NewWindow("Estacionamiento")
-    view.NewMainView(mainWindow)
+    view.NuevaVistaPrincipal(mainWindow)
     mainWindow.ShowAndRun()
 }

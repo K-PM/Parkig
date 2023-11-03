@@ -7,174 +7,175 @@ import (
 	"time"
 )
 
-var (
-	mutexExitEnter sync.Mutex
-)
+var mutexEntradaSalida sync.Mutex
 
 const (
 	lambda         = 2.0
-	MaxWait    int = 10
-	MaxParking int = 20
+	MaxEspera    int = 10
+	MaxEstacionamiento int = 20
 )
 
-type Parking struct {
-	waitCars            []*Car
-	parking             [MaxParking]*Car
-	entrace             *Car
-	exit                *Car
-	out                 *Car
-	semQuit             chan bool
-	semRenderNewCarWait chan bool
+type Estacionamiento struct {
+	colaEspera            []*Auto
+	estacionamiento             [MaxEstacionamiento]*Auto
+	entrada             *Auto
+	salida                *Auto
+	salidaEstacionamiento                 *Auto
+	semaEspera             chan bool
+	semRenderNuevoAutoEspera chan bool
 }
 
-func NewParking(sENCW chan bool, sQ chan bool) *Parking {
-	parking := &Parking{
-		semRenderNewCarWait: sENCW,
-		semQuit:             sQ,
+func NuevoEstacionamiento(senaENCW chan bool, sq chan bool) *Estacionamiento {
+	estacionamiento := &Estacionamiento{
+		semRenderNuevoAutoEspera: senaENCW,
+		semaEspera:             sq,
 	}
-	return parking
+	return estacionamiento
 }
 
-func (p *Parking) MakeParking() {
-	for i := range p.parking {
-		car := NewSpaceCar()
-		p.parking[i] = car
+func (e *Estacionamiento) CrearEstacionamiento() {
+	for i := range e.estacionamiento {
+		auto := NuevoAutoEstacionamiento()
+		e.estacionamiento[i] = auto
 	}
 }
 
-func (p *Parking) MakeOutStation() *Car {
-	p.out = NewSpaceCar()
-	return p.out
+func (e *Estacionamiento) CrearSalidaEstacionamiento() *Auto {
+	e.salidaEstacionamiento = NuevoAutoEstacionamiento()
+	return e.salidaEstacionamiento
 }
 
-func (p *Parking) MakeExitStation() *Car {
-	p.exit = NewSpaceCar()
-	return p.exit
+func (e *Estacionamiento) CrearSalida() *Auto {
+	e.salida = NuevoAutoEstacionamiento()
+	return e.salida
 }
 
-func (p *Parking) MakeEntraceStation() *Car {
-	p.entrace = NewSpaceCar()
-	return p.entrace
+func (e *Estacionamiento) CrearEntrada() *Auto {
+	e.entrada = NuevoAutoEstacionamiento()
+	return e.entrada
 }
 
-func (p *Parking) GenerateCars() {
-	i := 20
+//PARA Poisson
+func (e *Estacionamiento) GenerarAutos() {
+	cantidadAutos := 0
 	for {
-			interarrivalTime := -math.Log(1-rand.Float64()) / lambda //Poisson.
-			time.Sleep(time.Duration(interarrivalTime * float64(time.Second)))
-			if len(p.waitCars) < MaxWait {
-				car := NewCar(i, p.semQuit)
-				i++
-				p.waitCars = append(p.waitCars, car)
-				p.semRenderNewCarWait <- true
-			}
-	}
-}
+		for cantidadAutos < 100{
+			tiempoInterarribo := -math.Log(1-rand.Float64()) / lambda
+			time.Sleep(time.Duration(tiempoInterarribo * float64(time.Second)))
 
-func (p *Parking) CheckParking() {
-	for {
-		select {
-		case <-p.semQuit:
-			return
-		default:
-			index := p.SearchSpace()
-			if index != -1 && !p.WaitCarsIsEmpty() {
-				mutexExitEnter.Lock()
-				p.MoveToEntrace()
-				p.MoveToPark(index)
-				mutexExitEnter.Unlock()
+			if len(e.colaEspera) < MaxEspera {
+				auto := NuevoAuto(cantidadAutos, e.semaEspera)
+				e.colaEspera = append(e.colaEspera, auto)
+				e.semRenderNuevoAutoEspera <- true
+				cantidadAutos++
 			}
 		}
 	}
 }
 
-func (p *Parking) MoveToEntrace() {
-	car := p.PopWaitCars()
-	p.entrace.ReplaceData(car)
-	time.Sleep(1 * time.Second)
-}
-
-func (p *Parking) MoveToPark(index int) {
-	p.parking[index].ReplaceData(p.entrace)
-
-	p.entrace.ReplaceData(NewSpaceCar())
-	go p.parking[index].StartCount(index)
-	time.Sleep(1 * time.Second)
-
-}
-
-func (p *Parking) OutCarToExit() {
+func (e *Estacionamiento) VerificarEstacionamiento() {
 	for {
 		select {
-		case <-p.semQuit:
+		case <-e.semaEspera:
 			return
 		default:
-			if !WaitExitCarsIsEmpty() {
-				mutexExitEnter.Lock()
-				car := PopExitWaitCars()
+			indice := e.BuscarEspacio()
+			if indice != -1 && !e.ColaEsperaVacia() {
+				mutexEntradaSalida.Lock()
+				e.MoverAEntrada()
+				e.MoverAEstacionamiento(indice)
+				mutexEntradaSalida.Unlock()
+			}
+		}
+	}
+}
 
-				p.MoveToExit(car.ID)
-				p.MoveToOut()
-				mutexExitEnter.Unlock()
+func (e *Estacionamiento) MoverAEntrada() {
+	auto := e.DesencolarAutosEspera()
+	e.entrada.ReemplazarDatos(auto)
+	time.Sleep(1 * time.Second)
+}
+
+func (e *Estacionamiento) MoverAEstacionamiento(indice int) {
+	e.estacionamiento[indice].ReemplazarDatos(e.entrada)
+
+	e.entrada.ReemplazarDatos(NuevoAutoEstacionamiento())
+	go e.estacionamiento[indice].IniciarConteo(indice)
+	time.Sleep(1 * time.Second)
+}
+
+func (e *Estacionamiento) SalidaAutoASalida() {
+	for {
+		select {
+		case <-e.semaEspera:
+			return
+		default:
+			if !ColaSalidaAutosVacia() {
+				mutexEntradaSalida.Lock()
+				auto := DesencolarSalidaAutos()
+
+				e.MoverASalida(auto.ID)
+				e.MoverASalidaEstacionamiento()
+				mutexEntradaSalida.Unlock()
 
 				time.Sleep(1 * time.Second)
-				p.out.ReplaceData(NewSpaceCar())
+				e.salidaEstacionamiento.ReemplazarDatos(NuevoAutoEstacionamiento())
 			}
 		}
 	}
 }
 
-func (p *Parking) MoveToExit(index int) {
-	p.exit.ReplaceData(p.parking[index])
-	p.parking[index].ReplaceData(NewSpaceCar())
+func (e *Estacionamiento) MoverASalida(indice int) {
+	e.salida.ReemplazarDatos(e.estacionamiento[indice])
+	e.estacionamiento[indice].ReemplazarDatos(NuevoAutoEstacionamiento())
 	time.Sleep(1 * time.Second)
 }
 
-func (p *Parking) MoveToOut() {
-	p.out.ReplaceData(p.exit)
-	p.exit.ReplaceData(NewSpaceCar())
+func (e *Estacionamiento) MoverASalidaEstacionamiento() {
+	e.salidaEstacionamiento.ReemplazarDatos(e.salida)
+	e.salida.ReemplazarDatos(NuevoAutoEstacionamiento())
 	time.Sleep(1 * time.Second)
 }
 
-func (p *Parking) SearchSpace() int {
-	for s := range p.parking {
-		if p.parking[s].GetID() == -1 {
+func (e *Estacionamiento) BuscarEspacio() int {
+	for s := range e.estacionamiento {
+		if e.estacionamiento[s].ObtenerID() == -1 {
 			return s
 		}
 	}
 	return -1
 }
 
-func (p *Parking) PopWaitCars() *Car {
-	car := p.waitCars[0]
-	if !p.WaitCarsIsEmpty() {
-		p.waitCars = p.waitCars[1:]
+func (e *Estacionamiento) DesencolarAutosEspera() *Auto {
+	auto := e.colaEspera[0]
+	if !e.ColaEsperaVacia() {
+		e.colaEspera = e.colaEspera[1:]
 	}
-	return car
+	return auto
 }
 
-func (p *Parking) WaitCarsIsEmpty() bool {
-	return len(p.waitCars) == 0
+func (e *Estacionamiento) ColaEsperaVacia() bool {
+	return len(e.colaEspera) == 0
 }
 
-func (p *Parking) GetWaitCars() []*Car {
-	return p.waitCars
+func (e *Estacionamiento) ObtenerAutosEspera() []*Auto {
+	return e.colaEspera
 }
 
-func (p *Parking) GetEntraceCar() *Car {
-	return p.entrace
+func (e *Estacionamiento) ObtenerAutoEntrada() *Auto {
+	return e.entrada
 }
 
-func (p *Parking) GetExitCar() *Car {
-	return p.exit
+func (e *Estacionamiento) ObtenerAutoSalida() *Auto {
+	return e.salida
 }
 
-func (p *Parking) GetParking() [MaxParking]*Car {
-	return p.parking
+func (e *Estacionamiento) ObtenerEstacionamiento() [MaxEstacionamiento]*Auto {
+	return e.estacionamiento
 }
 
-func (p *Parking) ClearParking() {
-	for i := range p.parking {
-		p.parking[i] = nil
+func (e *Estacionamiento) LimpiarEstacionamiento() {
+	for i := range e.estacionamiento {
+		e.estacionamiento[i] = nil
 	}
 }
